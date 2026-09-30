@@ -423,6 +423,15 @@ private fun TripCard(
                         color = Slate400,
                         fontFamily = FontFamily.Monospace
                     )
+                    if (session.pointsEarned > 0) {
+                        Text(
+                            text = "+${session.pointsEarned} pts",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = com.example.ui.theme.AmberAccent,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
                 }
             }
         }

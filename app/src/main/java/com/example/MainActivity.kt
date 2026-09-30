@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Settings
@@ -43,6 +44,7 @@ import com.example.location.TrackingStatus
 import com.example.ui.screens.AnalyticsScreen
 import com.example.ui.screens.HistoryScreen
 import com.example.ui.screens.LiveTraceScreen
+import com.example.ui.screens.RewardsScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.TripDetailScreen
 import com.example.ui.theme.CyanLight
@@ -56,6 +58,7 @@ import com.example.ui.theme.Slate950
 enum class AppTab(val title: String, val icon: ImageVector) {
     LIVE_TRACE("Live Trace", Icons.Default.MyLocation),
     HISTORY("History", Icons.Default.History),
+    REWARDS("Rewards", Icons.Default.EmojiEvents),
     ANALYTICS("Analytics", Icons.Default.BarChart),
     SETTINGS("Settings", Icons.Default.Settings)
 }
@@ -158,6 +161,9 @@ fun MainAppContent() {
                             useImperialUnits = useImperialUnits,
                             onTripCompleted = { newSessionId ->
                                 selectedTripId = newSessionId
+                            },
+                            onOpenRewards = {
+                                currentTab = AppTab.REWARDS
                             }
                         )
                     }
@@ -171,6 +177,9 @@ fun MainAppContent() {
                                 currentTab = AppTab.LIVE_TRACE
                             }
                         )
+                    }
+                    AppTab.REWARDS -> {
+                        RewardsScreen()
                     }
                     AppTab.ANALYTICS -> {
                         AnalyticsScreen(useImperialUnits = useImperialUnits)

@@ -416,6 +416,16 @@ fun TripDetailScreen(
                             )
                         }
 
+                        // Rewards Earned from this Trace
+                        if (sess.pointsEarned > 0) {
+                            DetailStatBox(
+                                label = "REWARDS EARNED",
+                                value = "+${sess.pointsEarned} GeoPoints",
+                                valueColor = AmberAccent,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
                         // Elevation Profile Chart
                         ElevationSpeedChart(
                             points = points,

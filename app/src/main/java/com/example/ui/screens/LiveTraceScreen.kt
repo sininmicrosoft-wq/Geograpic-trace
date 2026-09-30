@@ -68,11 +68,13 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.location.LocationTracingManager
 import com.example.location.TrackingStatus
+import com.example.data.repository.TraceRewardSummary
 import com.example.ui.components.AddWaypointDialog
 import com.example.ui.components.ElevationSpeedChart
 import com.example.ui.components.InteractiveRouteMap
 import com.example.ui.components.LocationPermissionHandler
 import com.example.ui.components.TelemetryHUD
+import com.example.ui.components.TraceRewardDialog
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.example.ui.theme.AmberAccent
@@ -108,7 +110,8 @@ val geofenceOptions = listOf(
 @Composable
 fun LiveTraceScreen(
     useImperialUnits: Boolean = false,
-    onTripCompleted: (Long) -> Unit
+    onTripCompleted: (Long) -> Unit,
+    onOpenRewards: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val manager = remember { LocationTracingManager.getInstance(context) }
@@ -118,6 +121,8 @@ fun LiveTraceScreen(
     var selectedGeofence by remember { mutableStateOf<Double?>(null) }
     var simulationMode by remember { mutableStateOf(false) }
     var showWaypointDialog by remember { mutableStateOf(false) }
+    var rewardSummaryToShow by remember { mutableStateOf<TraceRewardSummary?>(null) }
+    var finishedSessionId by remember { mutableStateOf<Long?>(null) }
     var viewMode by remember { mutableStateOf(0) } // 0 = Split, 1 = Full Map, 2 = Telemetry
 
     LocationPermissionHandler(
@@ -426,8 +431,13 @@ fun LiveTraceScreen(
                         // Stop & Finish button
                         Button(
                             onClick = {
-                                manager.stopTracing { sessionId ->
-                                    onTripCompleted(sessionId)
+                                manager.stopTracing { sessionId, summary ->
+                                    if (summary != null) {
+                                        finishedSessionId = sessionId
+                                        rewardSummaryToShow = summary
+                                    } else {
+                                        onTripCompleted(sessionId)
+                                    }
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = RedAlert, contentColor = Color.White),
@@ -462,8 +472,13 @@ fun LiveTraceScreen(
                         // Stop & Save
                         Button(
                             onClick = {
-                                manager.stopTracing { sessionId ->
-                                    onTripCompleted(sessionId)
+                                manager.stopTracing { sessionId, summary ->
+                                    if (summary != null) {
+                                        finishedSessionId = sessionId
+                                        rewardSummaryToShow = summary
+                                    } else {
+                                        onTripCompleted(sessionId)
+                                    }
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = RedAlert, contentColor = Color.White),
@@ -488,6 +503,27 @@ fun LiveTraceScreen(
                 onDismiss = { showWaypointDialog = false },
                 onConfirm = { title, desc, cat ->
                     manager.dropWaypoint(title, desc, cat)
+                }
+            )
+        }
+
+        // Reward Celebration Dialog on Trace Completion
+        rewardSummaryToShow?.let { summary ->
+            TraceRewardDialog(
+                summary = summary,
+                onDismiss = {
+                    val sid = finishedSessionId
+                    rewardSummaryToShow = null
+                    if (sid != null) onTripCompleted(sid)
+                },
+                onViewTrip = {
+                    val sid = finishedSessionId
+                    rewardSummaryToShow = null
+                    if (sid != null) onTripCompleted(sid)
+                },
+                onViewRewardsStore = {
+                    rewardSummaryToShow = null
+                    onOpenRewards()
                 }
             )
         }

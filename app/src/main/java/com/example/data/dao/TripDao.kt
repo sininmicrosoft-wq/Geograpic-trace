@@ -6,7 +6,9 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.example.data.model.LocationBreadcrumb
+import com.example.data.model.RewardTransaction
 import com.example.data.model.TripSession
+import com.example.data.model.UserRewardWallet
 import com.example.data.model.WaypointMarker
 import kotlinx.coroutines.flow.Flow
 
@@ -72,4 +74,19 @@ interface TripDao {
 
     @Query("SELECT MAX(maxSpeedKmh) FROM trip_sessions WHERE isCompleted = 1")
     fun getTopSpeedKmh(): Flow<Double?>
+
+    @Query("SELECT * FROM reward_wallet WHERE id = 1 LIMIT 1")
+    fun getWallet(): Flow<UserRewardWallet?>
+
+    @Query("SELECT * FROM reward_wallet WHERE id = 1 LIMIT 1")
+    suspend fun getWalletSync(): UserRewardWallet?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateWallet(wallet: UserRewardWallet)
+
+    @Query("SELECT * FROM reward_transactions ORDER BY timestampMillis DESC LIMIT 50")
+    fun getAllRewardTransactions(): Flow<List<RewardTransaction>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRewardTransaction(tx: RewardTransaction): Long
 }

@@ -73,6 +73,7 @@ fun InteractiveRouteMap(
     bearingDegrees: Float = 0f,
     accuracyMeters: Float = 5f,
     waypoints: List<WaypointMarker> = emptyList(),
+    geoDrops: List<com.example.data.model.GeoDropCheckpoint> = emptyList(),
     geofenceRadiusMeters: Double? = null,
     modifier: Modifier = Modifier,
     enableControls: Boolean = true,
@@ -244,6 +245,40 @@ fun InteractiveRouteMap(
                     radius = 4.dp.toPx(),
                     center = wptScreen
                 )
+            }
+
+            // 4b. Draw GeoDrop Reward Discovery Checkpoints
+            geoDrops.forEach { drop ->
+                val dropScreen = latLonToScreen(drop.latitude, drop.longitude)
+                if (drop.isCollected) {
+                    drawCircle(
+                        color = EmeraldGreen.copy(alpha = 0.4f),
+                        radius = 8.dp.toPx(),
+                        center = dropScreen
+                    )
+                    drawCircle(
+                        color = EmeraldGreen,
+                        radius = 4.dp.toPx(),
+                        center = dropScreen
+                    )
+                } else {
+                    // Pulsing golden discovery chest marker
+                    drawCircle(
+                        color = Color(0xFFF59E0B).copy(alpha = 0.25f),
+                        radius = 14.dp.toPx(),
+                        center = dropScreen
+                    )
+                    drawCircle(
+                        color = Color(0xFFF59E0B),
+                        radius = 7.dp.toPx(),
+                        center = dropScreen
+                    )
+                    drawCircle(
+                        color = Color.White,
+                        radius = 2.5.dp.toPx(),
+                        center = dropScreen
+                    )
+                }
             }
 
             // 5. Draw Start Pin

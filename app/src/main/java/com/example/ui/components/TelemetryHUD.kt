@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Warning
@@ -136,6 +137,45 @@ fun TelemetryHUD(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = CyanLight,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
+
+        // Live Reward GeoPoints Pill
+        if (state.status != com.example.location.TrackingStatus.IDLE) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = AmberAccent.copy(alpha = 0.12f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, AmberAccent.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Stars,
+                            contentDescription = null,
+                            tint = AmberAccent,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Live Trace Rewards",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                    Text(
+                        text = "+${state.estimatedPoints} GeoPoints",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        color = AmberAccent,
                         fontFamily = FontFamily.Monospace
                     )
                 }

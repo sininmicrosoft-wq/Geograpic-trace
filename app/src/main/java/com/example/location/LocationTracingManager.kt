@@ -50,7 +50,8 @@ data class TracingState(
     val geofenceRadiusMeters: Double? = null,
     val isOutsideGeofence: Boolean = false,
     val distanceToStartMeters: Double? = null,
-    val bearingToStartDegrees: Float? = null
+    val bearingToStartDegrees: Float? = null,
+    val estimatedPoints: Int = 0
 )
 
 class LocationTracingManager private constructor(private val context: Context) {
@@ -150,7 +151,7 @@ class LocationTracingManager private constructor(private val context: Context) {
         startTimer()
     }
 
-    fun stopTracing(onFinished: ((Long) -> Unit)? = null) {
+    fun stopTracing(onFinished: ((Long, com.example.data.repository.TraceRewardSummary?) -> Unit)? = null) {
         val currentSessionId = _state.value.activeSessionId ?: return
         timerJob?.cancel()
 
@@ -166,6 +167,14 @@ class LocationTracingManager private constructor(private val context: Context) {
 
         scope.launch {
             val currentState = _state.value
+            val rewardSummary = repository.awardTraceRewards(
+                sessionId = currentSessionId,
+                distanceMeters = currentState.totalDistanceMeters,
+                elevationMeters = currentState.elevationGainMeters,
+                waypointCount = currentState.waypoints.size,
+                activityType = currentState.activityType
+            )
+
             val session = TripSession(
                 id = currentSessionId,
                 title = "${currentState.activityType} Trace",
@@ -180,6 +189,7 @@ class LocationTracingManager private constructor(private val context: Context) {
                 minAltitudeMeters = currentState.minAltitudeMeters,
                 maxAltitudeMeters = currentState.maxAltitudeMeters,
                 pointCount = currentState.points.size,
+                pointsEarned = rewardSummary.totalPointsEarned,
                 isCompleted = true
             )
             repository.updateSession(session)
@@ -188,7 +198,7 @@ class LocationTracingManager private constructor(private val context: Context) {
             lastLocation = null
             lastRecordedAltitude = null
 
-            onFinished?.invoke(currentSessionId)
+            onFinished?.invoke(currentSessionId, rewardSummary)
         }
     }
 
@@ -348,6 +358,12 @@ class LocationTracingManager private constructor(private val context: Context) {
             }
         }
 
+        val distPts = (totalDist / 10.0).toInt()
+        val activityMult = if (current.activityType in listOf("Running", "Hiking")) 1.2 else 1.0
+        val elevPts = (elevationGain / 2.0).toInt()
+        val wptPts = current.waypoints.size * 20
+        val estPts = ((distPts * activityMult) + elevPts + wptPts).toInt().coerceAtLeast(0)
+
         _state.value = current.copy(
             currentLat = location.latitude,
             currentLon = location.longitude,
@@ -363,7 +379,8 @@ class LocationTracingManager private constructor(private val context: Context) {
             points = newPoints,
             isOutsideGeofence = isOutsideGeofence,
             distanceToStartMeters = distToStart,
-            bearingToStartDegrees = bearingToStart
+            bearingToStartDegrees = bearingToStart,
+            estimatedPoints = estPts
         )
 
         lastLocation = location

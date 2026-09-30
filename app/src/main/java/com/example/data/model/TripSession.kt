@@ -19,6 +19,7 @@ data class TripSession(
     val minAltitudeMeters: Double = 0.0,
     val maxAltitudeMeters: Double = 0.0,
     val pointCount: Int = 0,
+    val pointsEarned: Int = 0,
     val notes: String = "",
     val isCompleted: Boolean = false
 )
