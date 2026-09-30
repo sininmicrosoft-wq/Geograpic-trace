@@ -4,19 +4,13 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.location.Location
-import android.os.Looper
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.example.GeoTraceApplication
 import com.example.data.model.LocationBreadcrumb
 import com.example.data.model.TripSession
 import com.example.data.model.WaypointMarker
 import com.example.service.LocationTracingService
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,9 +20,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
 
 enum class TrackingStatus {
     IDLE,
@@ -64,9 +55,6 @@ data class TracingState(
 
 class LocationTracingManager private constructor(private val context: Context) {
 
-    private val fusedLocationClient: FusedLocationProviderClient =
-        LocationServices.getFusedLocationProviderClient(context)
-
     private val repository = GeoTraceApplication.instance.tripRepository
     private val scope = CoroutineScope(Dispatchers.Default + Job())
 
@@ -74,17 +62,9 @@ class LocationTracingManager private constructor(private val context: Context) {
     val state: StateFlow<TracingState> = _state.asStateFlow()
 
     private var timerJob: Job? = null
-    private var simulationJob: Job? = null
     private var lastLocation: Location? = null
     private var lastRecordedAltitude: Double? = null
     private var lastDbSaveTime: Long = 0
-
-    private val locationCallback = object : LocationCallback() {
-        override fun onLocationResult(result: LocationResult) {
-            val location = result.lastLocation ?: return
-            handleNewLocation(location)
-        }
-    }
 
     @SuppressLint("MissingPermission")
     fun startTracing(
@@ -113,49 +93,76 @@ class LocationTracingManager private constructor(private val context: Context) {
 
             startTimer()
 
-            if (useSimulation) {
-                startSimulationLoop()
-            } else {
-                startRealLocationUpdates()
-            }
-
-            // Start foreground service for notifications and persistent lock
+            // Start LocationTracingService as Foreground Service with location type
             try {
                 val serviceIntent = Intent(context, LocationTracingService::class.java).apply {
                     action = LocationTracingService.ACTION_START
+                    putExtra(LocationTracingService.EXTRA_ACTIVITY_TYPE, activityType)
+                    putExtra(LocationTracingService.EXTRA_SIMULATION, useSimulation)
+                    geofenceRadiusMeters?.let {
+                        putExtra(LocationTracingService.EXTRA_GEOFENCE_RADIUS, it)
+                    }
                 }
-                context.startService(serviceIntent)
+                ContextCompat.startForegroundService(context, serviceIntent)
+                Log.d("LocationTracingManager", "Started foreground tracing service successfully")
             } catch (e: Exception) {
-                Log.e("LocationTracing", "Failed to start service", e)
+                Log.e("LocationTracingManager", "Failed to start foreground service", e)
             }
         }
     }
 
     fun pauseTracing() {
         if (_state.value.status != TrackingStatus.RECORDING) return
+        pauseTrackingInternal()
+
+        try {
+            val serviceIntent = Intent(context, LocationTracingService::class.java).apply {
+                action = LocationTracingService.ACTION_PAUSE
+            }
+            context.startService(serviceIntent)
+        } catch (e: Exception) {
+            Log.e("LocationTracingManager", "Failed to pause service", e)
+        }
+    }
+
+    fun pauseTrackingInternal() {
         timerJob?.cancel()
-        simulationJob?.cancel()
-        stopRealLocationUpdates()
         _state.value = _state.value.copy(status = TrackingStatus.PAUSED)
     }
 
     @SuppressLint("MissingPermission")
     fun resumeTracing() {
         if (_state.value.status != TrackingStatus.PAUSED) return
+        resumeTrackingInternal()
+
+        try {
+            val serviceIntent = Intent(context, LocationTracingService::class.java).apply {
+                action = LocationTracingService.ACTION_RESUME
+            }
+            context.startService(serviceIntent)
+        } catch (e: Exception) {
+            Log.e("LocationTracingManager", "Failed to resume service", e)
+        }
+    }
+
+    fun resumeTrackingInternal() {
         _state.value = _state.value.copy(status = TrackingStatus.RECORDING)
         startTimer()
-        if (_state.value.isSimulated) {
-            startSimulationLoop()
-        } else {
-            startRealLocationUpdates()
-        }
     }
 
     fun stopTracing(onFinished: ((Long) -> Unit)? = null) {
         val currentSessionId = _state.value.activeSessionId ?: return
         timerJob?.cancel()
-        simulationJob?.cancel()
-        stopRealLocationUpdates()
+
+        // Stop foreground service
+        try {
+            val serviceIntent = Intent(context, LocationTracingService::class.java).apply {
+                action = LocationTracingService.ACTION_STOP
+            }
+            context.startService(serviceIntent)
+        } catch (e: Exception) {
+            Log.e("LocationTracingManager", "Failed to stop service", e)
+        }
 
         scope.launch {
             val currentState = _state.value
@@ -176,16 +183,6 @@ class LocationTracingManager private constructor(private val context: Context) {
                 isCompleted = true
             )
             repository.updateSession(session)
-
-            // Stop foreground service
-            try {
-                val serviceIntent = Intent(context, LocationTracingService::class.java).apply {
-                    action = LocationTracingService.ACTION_STOP
-                }
-                context.startService(serviceIntent)
-            } catch (e: Exception) {
-                Log.e("LocationTracing", "Failed to stop service", e)
-            }
 
             _state.value = TracingState()
             lastLocation = null
@@ -219,35 +216,6 @@ class LocationTracingManager private constructor(private val context: Context) {
 
     fun setGeofenceRadius(radiusMeters: Double?) {
         _state.value = _state.value.copy(geofenceRadiusMeters = radiusMeters)
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun startRealLocationUpdates() {
-        try {
-            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2000L)
-                .setMinUpdateIntervalMillis(1000L)
-                .setMinUpdateDistanceMeters(2.0f)
-                .setWaitForAccurateLocation(false)
-                .build()
-
-            fusedLocationClient.requestLocationUpdates(
-                locationRequest,
-                locationCallback,
-                Looper.getMainLooper()
-            )
-
-            fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
-                if (loc != null && _state.value.status == TrackingStatus.RECORDING && _state.value.currentLat == null) {
-                    handleNewLocation(loc)
-                }
-            }
-        } catch (e: SecurityException) {
-            Log.e("LocationTracing", "Missing location permission", e)
-        }
-    }
-
-    private fun stopRealLocationUpdates() {
-        fusedLocationClient.removeLocationUpdates(locationCallback)
     }
 
     private fun startTimer() {
@@ -291,7 +259,7 @@ class LocationTracingManager private constructor(private val context: Context) {
         }
     }
 
-    private fun handleNewLocation(location: Location) {
+    fun handleNewLocation(location: Location) {
         val current = _state.value
         if (current.status != TrackingStatus.RECORDING) return
         val sessionId = current.activeSessionId ?: return
@@ -402,48 +370,6 @@ class LocationTracingManager private constructor(private val context: Context) {
 
         scope.launch {
             repository.addPoint(breadcrumb)
-        }
-    }
-
-    // High quality simulation loop for testing/emulator/demo
-    private fun startSimulationLoop() {
-        simulationJob?.cancel()
-        simulationJob = scope.launch {
-            // Simulated scenic circular nature trail coordinates
-            val baseLat = 37.7749
-            val baseLon = -122.4194
-            var step = _state.value.points.size
-            val radius = 0.008
-
-            while (isActive && _state.value.status == TrackingStatus.RECORDING) {
-                delay(1500L)
-                step++
-
-                val angle = (step * 0.12) % (2 * Math.PI)
-                // Add slight winding perturbation
-                val r = radius * (1.0 + 0.25 * sin(angle * 3))
-                val lat = baseLat + r * cos(angle)
-                val lon = baseLon + r * sin(angle)
-                val alt = 85.0 + 35.0 * sin(angle * 2) + (step % 5)
-                val simSpeedKmh = when (_state.value.activityType) {
-                    "Running" -> 10.5 + 2.0 * sin(step * 0.2)
-                    "Cycling" -> 22.0 + 4.0 * cos(step * 0.2)
-                    "Driving" -> 50.0 + 10.0 * sin(step * 0.1)
-                    else -> 4.8 + 1.2 * sin(step * 0.3)
-                }
-
-                val loc = Location("simulated").apply {
-                    latitude = lat
-                    longitude = lon
-                    altitude = alt
-                    speed = (simSpeedKmh / 3.6).toFloat()
-                    accuracy = 3.5f
-                    bearing = ((Math.toDegrees(angle + Math.PI / 2) + 360) % 360).toFloat()
-                    time = System.currentTimeMillis()
-                }
-
-                handleNewLocation(loc)
-            }
         }
     }
 
