@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Trace route path -->
+    <path
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M30,76 C36,60 42,66 52,52 C60,40 48,32 66,26" />
+
+    <!-- Trajectory dashed trail -->
+    <path
+        android:strokeColor="#8038BDF8"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M24,84 C27,80 29,78 30,76" />
+
+    <!-- Start Waypoint dot (Emerald) -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M30,76m-4,0a4,4 0 1,0 8,0a4,4 0 1,0 -8,0" />
+
+    <!-- Intermediate Waypoint dot -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M52,52m-3,0a3,3 0 1,0 6,0a3,3 0 1,0 -6,0" />
+
+    <!-- Prominent Target Pin (Emerald & Cyan & White) -->
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M66,20 C58.27,20 52,26.27 52,34 C52,43.5 63.6,56.2 65.1,57.8 C65.6,58.3 66.4,58.3 66.9,57.8 C68.4,56.2 80,43.5 80,34 C80,26.27 73.73,20 66,20 Z" />
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M66,22 C59.37,22 54,27.37 54,34 C54,42.2 64,53.4 66,55.6 C68,53.4 78,42.2 78,34 C78,27.37 72.63,22 66,22 Z" />
+    <!-- Pin Center Core -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M66,34m-5,0a5,5 0 1,0 10,0a5,5 0 1,0 -10,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M66,34m-2.5,0a2.5,2.5 0 1,0 5,0a2.5,2.5 0 1,0 -5,0" />
+</vector>

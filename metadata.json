@@ -1,0 +1,6 @@
+{
+  "name": "GeoTrace",
+  "description": "Real-time GPS location tracing, route recording, live telemetry HUD, elevation profiles, waypoints, and GPX export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
