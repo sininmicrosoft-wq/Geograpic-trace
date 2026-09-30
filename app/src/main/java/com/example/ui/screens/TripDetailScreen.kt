@@ -48,6 +48,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import com.example.ui.components.GpxExportDialog
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -507,75 +508,12 @@ fun TripDetailScreen(
 
         // Export Dialog
         if (showExportDialog) {
-            AlertDialog(
-                onDismissRequest = { showExportDialog = false },
-                containerColor = Slate900,
-                title = {
-                    Text("Export GPX Trace", color = Color.White, fontWeight = FontWeight.Bold)
-                },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = "Standard GPX format compatible with Garmin, Strava, Google Earth, and GIS tools.",
-                            fontSize = 13.sp,
-                            color = Slate400
-                        )
-
-                        Text(
-                            text = "Points: ${points.size} | Waypoints: ${waypoints.size}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = CyanNeon
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            // Copy to clipboard
-                            OutlinedButton(
-                                onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    val clip = ClipData.newPlainText("GPX Trace", gpxContent)
-                                    clipboard.setPrimaryClip(clip)
-                                    Toast.makeText(context, "GPX XML copied to clipboard!", Toast.LENGTH_SHORT).show()
-                                    showExportDialog = false
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Copy XML", fontSize = 12.sp)
-                            }
-
-                            // Share Intent
-                            Button(
-                                onClick = {
-                                    val sendIntent = Intent().apply {
-                                        action = Intent.ACTION_SEND
-                                        putExtra(Intent.EXTRA_TEXT, gpxContent)
-                                        putExtra(Intent.EXTRA_TITLE, "${session?.title ?: "Trip"}.gpx")
-                                        type = "application/gpx+xml"
-                                    }
-                                    val shareIntent = Intent.createChooser(sendIntent, "Share GPX Trace")
-                                    context.startActivity(shareIntent)
-                                    showExportDialog = false
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = CyanNeon, contentColor = Slate950),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Share", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { showExportDialog = false }) {
-                        Text("Close", color = Slate400)
-                    }
-                }
+            GpxExportDialog(
+                session = session,
+                pointCount = points.size,
+                waypointCount = waypoints.size,
+                gpxXmlContent = gpxContent,
+                onDismiss = { showExportDialog = false }
             )
         }
     }

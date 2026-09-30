@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Hiking
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
@@ -39,6 +41,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -47,6 +50,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -63,6 +67,7 @@ import androidx.compose.ui.unit.sp
 import com.example.GeoTraceApplication
 import com.example.data.model.LocationBreadcrumb
 import com.example.data.model.TripSession
+import com.example.ui.components.GpxExportDialog
 import com.example.ui.components.MiniRouteThumbnail
 import com.example.ui.theme.CyanLight
 import com.example.ui.theme.CyanNeon
@@ -90,6 +95,10 @@ fun HistoryScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("All") }
     var sessionToDelete by remember { mutableStateOf<TripSession?>(null) }
+    var exportDialogSession by remember { mutableStateOf<TripSession?>(null) }
+    var exportGpxContent by remember { mutableStateOf<String?>(null) }
+    var exportPointCount by remember { mutableIntStateOf(0) }
+    var exportWaypointCount by remember { mutableIntStateOf(0) }
 
     val filterActivities = listOf("All", "Walking", "Running", "Cycling", "Hiking", "Driving")
 
@@ -133,12 +142,42 @@ fun HistoryScreen(
                             )
                         }
 
-                        Text(
-                            text = "${sessions.size} recorded",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Slate400
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "${sessions.size} recorded",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Slate400
+                            )
+                            if (sessions.isNotEmpty()) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        scope.launch {
+                                            exportDialogSession = null
+                                            exportPointCount = sessions.sumOf { it.pointCount }
+                                            exportWaypointCount = 0
+                                            exportGpxContent = repository.exportAllHistoryGpxXml()
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = CyanNeon),
+                                    border = BorderStroke(1.dp, CyanNeon.copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .height(28.dp)
+                                        .testTag("export_all_gpx_button")
+                                ) {
+                                    Icon(
+                                        Icons.Default.FileDownload,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Export All", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -248,11 +287,33 @@ fun HistoryScreen(
                             session = session,
                             useImperialUnits = useImperialUnits,
                             onClick = { onSelectTrip(session.id) },
+                            onExportGpx = {
+                                scope.launch {
+                                    exportDialogSession = session
+                                    exportPointCount = session.pointCount
+                                    exportWaypointCount = repository.getSessionWaypointsSync(session.id).size
+                                    exportGpxContent = repository.exportGpxXml(session.id)
+                                }
+                            },
                             onDelete = { sessionToDelete = session }
                         )
                     }
                 }
             }
+        }
+
+        // GPX Export Dialog
+        exportGpxContent?.let { content ->
+            GpxExportDialog(
+                session = exportDialogSession,
+                pointCount = exportPointCount,
+                waypointCount = exportWaypointCount,
+                gpxXmlContent = content,
+                onDismiss = {
+                    exportGpxContent = null
+                    exportDialogSession = null
+                }
+            )
         }
 
         // Delete Confirmation Dialog
@@ -296,6 +357,7 @@ private fun TripCard(
     session: TripSession,
     useImperialUnits: Boolean,
     onClick: () -> Unit,
+    onExportGpx: () -> Unit,
     onDelete: () -> Unit
 ) {
     val repository = remember { GeoTraceApplication.instance.tripRepository }
@@ -376,16 +438,34 @@ private fun TripCard(
                         color = Color.White
                     )
 
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Delete Trip",
-                            tint = Slate400,
-                            modifier = Modifier.size(16.dp)
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = onExportGpx,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .testTag("export_gpx_${session.id}")
+                        ) {
+                            Icon(
+                                Icons.Default.FileDownload,
+                                contentDescription = "Export GPX Track",
+                                tint = CyanNeon,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .testTag("delete_trip_${session.id}")
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Delete Trip",
+                                tint = Slate400,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
 

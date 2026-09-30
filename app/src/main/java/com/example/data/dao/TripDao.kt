@@ -19,6 +19,9 @@ interface TripDao {
     @Query("SELECT * FROM trip_sessions ORDER BY startTimeMillis DESC")
     fun getAllSessions(): Flow<List<TripSession>>
 
+    @Query("SELECT * FROM trip_sessions ORDER BY startTimeMillis DESC")
+    suspend fun getAllSessionsSync(): List<TripSession>
+
     @Query("SELECT * FROM trip_sessions WHERE id = :sessionId LIMIT 1")
     fun getSessionById(sessionId: Long): Flow<TripSession?>
 
