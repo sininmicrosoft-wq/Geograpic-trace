@@ -5,11 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import com.example.data.database.GeoTraceDatabase
-import com.example.data.repository.RewardRepository
 import com.example.data.repository.TripRepository
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class GeoTraceApplication : Application() {
 
@@ -19,19 +15,11 @@ class GeoTraceApplication : Application() {
     lateinit var tripRepository: TripRepository
         private set
 
-    lateinit var rewardRepository: RewardRepository
-        private set
-
     override fun onCreate() {
         super.onCreate()
         instance = this
         database = GeoTraceDatabase.getDatabase(this)
         tripRepository = TripRepository(database.tripDao())
-        rewardRepository = RewardRepository(database.rewardDao())
-
-        CoroutineScope(Dispatchers.IO).launch {
-            rewardRepository.initializeIfNeeded()
-        }
 
         createNotificationChannel()
     }

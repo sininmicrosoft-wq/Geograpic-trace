@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Update
 import com.example.data.model.LocationBreadcrumb
 import com.example.data.model.RewardTransaction
+import com.example.data.model.StakedPosition
 import com.example.data.model.TripSession
 import com.example.data.model.UserRewardWallet
 import com.example.data.model.WaypointMarker
@@ -89,4 +90,19 @@ interface TripDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRewardTransaction(tx: RewardTransaction): Long
+
+    @Query("SELECT * FROM staked_positions ORDER BY startTimeMillis DESC")
+    fun getAllStakedPositions(): Flow<List<StakedPosition>>
+
+    @Query("SELECT * FROM staked_positions WHERE isActive = 1 ORDER BY startTimeMillis DESC")
+    fun getActiveStakedPositions(): Flow<List<StakedPosition>>
+
+    @Query("SELECT * FROM staked_positions WHERE isActive = 1")
+    suspend fun getActiveStakedPositionsSync(): List<StakedPosition>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStakedPosition(position: StakedPosition): Long
+
+    @Update
+    suspend fun updateStakedPosition(position: StakedPosition)
 }

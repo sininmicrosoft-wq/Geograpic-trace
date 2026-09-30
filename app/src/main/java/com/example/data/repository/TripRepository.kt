@@ -1,8 +1,13 @@
 package com.example.data.repository
 
+import com.example.blockchain.OpChainConfig
+import com.example.blockchain.OpClaimReceipt
+import com.example.blockchain.OpNetwork
+import com.example.blockchain.StakingPoolDef
 import com.example.data.dao.TripDao
 import com.example.data.model.LocationBreadcrumb
 import com.example.data.model.RewardTransaction
+import com.example.data.model.StakedPosition
 import com.example.data.model.TripSession
 import com.example.data.model.UserRewardWallet
 import com.example.data.model.WaypointMarker
@@ -18,6 +23,8 @@ data class TraceRewardSummary(
     val distancePoints: Int,
     val elevationPoints: Int,
     val waypointPoints: Int,
+    val stakingBonusPoints: Int = 0,
+    val activeStakingBoostPercent: Int = 0,
     val totalPointsEarned: Int,
     val previousBalance: Int,
     val newBalance: Int,
@@ -37,6 +44,10 @@ class TripRepository(private val tripDao: TripDao) {
 
     val rewardWallet: Flow<UserRewardWallet?> = tripDao.getWallet()
     val rewardTransactions: Flow<List<RewardTransaction>> = tripDao.getAllRewardTransactions()
+    val activeStakes: Flow<List<StakedPosition>> = tripDao.getActiveStakedPositions()
+    val allStakes: Flow<List<StakedPosition>> = tripDao.getAllStakedPositions()
+
+    val opChainService = com.example.blockchain.OpChainService()
 
     fun getSession(sessionId: Long): Flow<TripSession?> = tripDao.getSessionById(sessionId)
 
@@ -82,7 +93,8 @@ class TripRepository(private val tripDao: TripDao) {
     }
 
     /**
-     * Calculates and awards GeoPoints for a completed GPS location trace.
+     * Calculates and awards GeoPoints for a completed GPS location trace,
+     * including active staking APY multipliers.
      */
     suspend fun awardTraceRewards(
         sessionId: Long,
@@ -107,13 +119,20 @@ class TripRepository(private val tripDao: TripDao) {
             distPts = (distPts * 1.20).toInt()
         }
 
+        // Active Staking Boost Check
+        val activePositions = tripDao.getActiveStakedPositionsSync()
+        val maxStakingBoostPercent = activePositions.maxOfOrNull { it.traceBoostPercent } ?: 0
+        val stakingBonusPts = if (maxStakingBoostPercent > 0) {
+            (distPts * (maxStakingBoostPercent / 100.0)).toInt().coerceAtLeast(1)
+        } else 0
+
         // Elevation bonus: 1 pt per 2 meters of elevation gained
         val elevPts = if (elevationMeters > 0) (elevationMeters / 2.0).toInt() else 0
 
         // Waypoints bonus: 20 pts per dropped POI marker
         val wptPts = waypointCount * 20
 
-        val totalEarned = distPts + elevPts + wptPts
+        val totalEarned = distPts + elevPts + wptPts + stakingBonusPts
         val newBalance = prevBalance + totalEarned
         val newLifetime = currentWallet.lifetimePointsEarned + totalEarned
 
@@ -142,7 +161,11 @@ class TripRepository(private val tripDao: TripDao) {
         tripDao.insertRewardTransaction(
             RewardTransaction(
                 sessionId = sessionId,
-                title = "$activityType GPS Trace Reward",
+                title = if (stakingBonusPts > 0) {
+                    "$activityType Trace (+${maxStakingBoostPercent}% Staking Boost)"
+                } else {
+                    "$activityType GPS Trace Reward"
+                },
                 points = totalEarned,
                 category = "TRACE_DISTANCE"
             )
@@ -152,6 +175,8 @@ class TripRepository(private val tripDao: TripDao) {
             distancePoints = distPts,
             elevationPoints = elevPts,
             waypointPoints = wptPts,
+            stakingBonusPoints = stakingBonusPts,
+            activeStakingBoostPercent = maxStakingBoostPercent,
             totalPointsEarned = totalEarned,
             previousBalance = prevBalance,
             newBalance = newBalance,
@@ -213,6 +238,154 @@ class TripRepository(private val tripDao: TripDao) {
         val wallet = getOrCreateWallet()
         val updated = wallet.copy(activeTheme = themeId)
         tripDao.insertOrUpdateWallet(updated)
+    }
+
+    suspend fun updateOpWalletConfig(address: String, networkId: String, customContract: String) = withContext(Dispatchers.IO) {
+        val wallet = getOrCreateWallet()
+        val updated = wallet.copy(
+            opWalletAddress = address.trim(),
+            opNetworkId = networkId,
+            opTokenContractAddress = customContract.trim()
+        )
+        tripDao.insertOrUpdateWallet(updated)
+    }
+
+    suspend fun claimGeotTokensOnOp(
+        pointsToConvert: Int,
+        sessionId: Long? = null
+    ): OpClaimReceipt? = withContext(Dispatchers.IO) {
+        val wallet = getOrCreateWallet()
+        if (wallet.balancePoints < pointsToConvert || pointsToConvert <= 0) return@withContext null
+        if (wallet.opWalletAddress.isBlank()) return@withContext null
+
+        val geotAmount = pointsToConvert / OpChainConfig.GEOPOINTS_PER_GEOT
+        val network = OpNetwork.fromId(wallet.opNetworkId)
+
+        val receipt = opChainService.claimTokensToOp(
+            network = network,
+            recipientAddress = wallet.opWalletAddress,
+            amountGeot = geotAmount,
+            referenceTraceId = sessionId
+        )
+
+        val updated = wallet.copy(
+            balancePoints = wallet.balancePoints - pointsToConvert,
+            claimedGeotTokens = wallet.claimedGeotTokens + geotAmount
+        )
+        tripDao.insertOrUpdateWallet(updated)
+
+        tripDao.insertRewardTransaction(
+            RewardTransaction(
+                sessionId = sessionId,
+                title = "Claimed ${String.format(Locale.US, "%.2f", geotAmount)} \$GEOT on ${network.displayName}",
+                points = -pointsToConvert,
+                category = "CRYPTO_CLAIM"
+            )
+        )
+
+        receipt
+    }
+
+    // ==========================================
+    // STAKING REWARDS & APY ENGINE
+    // ==========================================
+
+    suspend fun stakeTokens(poolDef: StakingPoolDef, geotAmount: Double): Boolean = withContext(Dispatchers.IO) {
+        val pointsEquivalent = (geotAmount * OpChainConfig.GEOPOINTS_PER_GEOT).toInt()
+        val wallet = getOrCreateWallet()
+        if (wallet.balancePoints < pointsEquivalent || geotAmount < poolDef.minStakeGeot) {
+            return@withContext false
+        }
+
+        // Deduct points from wallet
+        val updatedWallet = wallet.copy(balancePoints = wallet.balancePoints - pointsEquivalent)
+        tripDao.insertOrUpdateWallet(updatedWallet)
+
+        val position = StakedPosition(
+            poolId = poolDef.id,
+            poolName = poolDef.name,
+            stakedAmountGeot = geotAmount,
+            stakedPointsEquivalent = pointsEquivalent,
+            apyPercent = poolDef.apyPercent,
+            traceBoostPercent = poolDef.traceBoostPercent,
+            startTimeMillis = System.currentTimeMillis(),
+            lockDurationDays = poolDef.lockDays,
+            lastHarvestMillis = System.currentTimeMillis(),
+            isActive = true
+        )
+        tripDao.insertStakedPosition(position)
+
+        tripDao.insertRewardTransaction(
+            RewardTransaction(
+                title = "Staked ${String.format(Locale.US, "%.2f", geotAmount)} \$GEOT in ${poolDef.name}",
+                points = -pointsEquivalent,
+                category = "STAKING_LOCK"
+            )
+        )
+        true
+    }
+
+    suspend fun harvestYield(position: StakedPosition): Double = withContext(Dispatchers.IO) {
+        val pendingGeot = position.calculatePendingYieldGeot()
+        if (pendingGeot <= 0.0001) return@withContext 0.0
+
+        val yieldPoints = (pendingGeot * OpChainConfig.GEOPOINTS_PER_GEOT).toInt().coerceAtLeast(1)
+        val wallet = getOrCreateWallet()
+        val updatedWallet = wallet.copy(
+            balancePoints = wallet.balancePoints + yieldPoints,
+            lifetimePointsEarned = wallet.lifetimePointsEarned + yieldPoints
+        )
+        tripDao.insertOrUpdateWallet(updatedWallet)
+
+        val updatedPosition = position.copy(
+            lastHarvestMillis = System.currentTimeMillis(),
+            totalClaimedYieldGeot = position.totalClaimedYieldGeot + pendingGeot
+        )
+        tripDao.updateStakedPosition(updatedPosition)
+
+        tripDao.insertRewardTransaction(
+            RewardTransaction(
+                title = "Harvested Yield from ${position.poolName} (+${yieldPoints} pts)",
+                points = yieldPoints,
+                category = "STAKING_YIELD"
+            )
+        )
+        pendingGeot
+    }
+
+    suspend fun harvestAllActiveYield(): Double = withContext(Dispatchers.IO) {
+        val active = tripDao.getActiveStakedPositionsSync()
+        var totalYield = 0.0
+        for (pos in active) {
+            totalYield += harvestYield(pos)
+        }
+        totalYield
+    }
+
+    suspend fun unstakeTokens(position: StakedPosition): Boolean = withContext(Dispatchers.IO) {
+        if (!position.isLockMatured && position.lockDurationDays > 0) return@withContext false
+
+        // Harvest any pending yield first
+        harvestYield(position)
+
+        // Return principal
+        val wallet = getOrCreateWallet()
+        val updatedWallet = wallet.copy(
+            balancePoints = wallet.balancePoints + position.stakedPointsEquivalent
+        )
+        tripDao.insertOrUpdateWallet(updatedWallet)
+
+        val deactivated = position.copy(isActive = false)
+        tripDao.updateStakedPosition(deactivated)
+
+        tripDao.insertRewardTransaction(
+            RewardTransaction(
+                title = "Unstaked ${String.format(Locale.US, "%.2f", position.stakedAmountGeot)} \$GEOT from ${position.poolName}",
+                points = position.stakedPointsEquivalent,
+                category = "STAKING_UNSTAKE"
+            )
+        )
+        true
     }
 
     private fun calculateLevelAndTitle(lifetimePoints: Int): Pair<Int, String> {

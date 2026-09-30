@@ -28,6 +28,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import com.example.GeoTraceApplication
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -55,6 +59,10 @@ fun TelemetryHUD(
     useImperialUnits: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val repository = remember { GeoTraceApplication.instance.tripRepository }
+    val activeStakes by repository.activeStakes.collectAsState(initial = emptyList())
+    val maxStakingBoost = remember(activeStakes) { activeStakes.maxOfOrNull { it.traceBoostPercent } ?: 0 }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -165,8 +173,8 @@ fun TelemetryHUD(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Live Trace Rewards",
-                            fontSize = 12.sp,
+                            text = if (maxStakingBoost > 0) "Live Trace (+${maxStakingBoost}% Boost)" else "Live Trace Rewards",
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )

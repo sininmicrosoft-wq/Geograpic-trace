@@ -168,6 +168,13 @@ fun TraceRewardDialog(
                             points = "+${summary.waypointPoints} pts"
                         )
                     }
+                    if (summary.stakingBonusPoints > 0) {
+                        RewardBreakdownRow(
+                            icon = Icons.Default.AutoAwesome,
+                            label = "Staking Vault Boost (+${summary.activeStakingBoostPercent}%)",
+                            points = "+${summary.stakingBonusPoints} pts"
+                        )
+                    }
                 }
 
                 // Wallet Balance and Tier Rank

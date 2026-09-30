@@ -2,6 +2,8 @@ package com.example.data.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.example.blockchain.OpChainConfig
+import com.example.blockchain.OpNetwork
 
 @Entity(tableName = "reward_wallet")
 data class UserRewardWallet(
@@ -14,5 +16,11 @@ data class UserRewardWallet(
     val streakDays: Int = 1,
     val lastTraceDate: String = "",
     val unlockedThemes: String = "CYBERPUNK", // Comma-separated theme identifiers
-    val activeTheme: String = "CYBERPUNK"
+    val activeTheme: String = "CYBERPUNK",
+
+    // OP Chain Token Integration
+    val opWalletAddress: String = "",
+    val opNetworkId: String = OpNetwork.OP_SEPOLIA.id,
+    val opTokenContractAddress: String = OpChainConfig.DEFAULT_OP_SEPOLIA_CONTRACT,
+    val claimedGeotTokens: Double = 0.0
 )
