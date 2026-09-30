@@ -72,6 +72,8 @@ import com.example.data.repository.TraceRewardSummary
 import com.example.ui.components.AddWaypointDialog
 import com.example.ui.components.ElevationSpeedChart
 import com.example.ui.components.InteractiveRouteMap
+import com.example.ui.components.CompactLiveTelemetryHUD
+import com.example.ui.components.LiveTelemetryHUD
 import com.example.ui.components.LocationPermissionHandler
 import com.example.ui.components.TelemetryHUD
 import com.example.ui.components.TraceRewardDialog
@@ -285,32 +287,13 @@ fun LiveTraceScreen(
                         )
 
                         // Compact HUD overlay on top of full map
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = Slate900.copy(alpha = 0.9f),
+                        CompactLiveTelemetryHUD(
+                            state = state,
+                            useImperialUnits = useImperialUnits,
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .padding(16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = String.format(java.util.Locale.US, "%.1f km/h", state.currentSpeedKmh),
-                                    fontWeight = FontWeight.Black,
-                                    color = CyanNeon,
-                                    fontSize = 18.sp
-                                )
-                                Text(
-                                    text = String.format(java.util.Locale.US, "%.2f km", state.totalDistanceMeters / 1000.0),
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    fontSize = 16.sp
-                                )
-                            }
-                        }
+                        )
                     }
                 }
                 2 -> {
