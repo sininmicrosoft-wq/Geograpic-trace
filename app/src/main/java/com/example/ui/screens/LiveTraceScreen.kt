@@ -71,7 +71,10 @@ import com.example.location.TrackingStatus
 import com.example.ui.components.AddWaypointDialog
 import com.example.ui.components.ElevationSpeedChart
 import com.example.ui.components.InteractiveRouteMap
+import com.example.ui.components.LocationPermissionHandler
 import com.example.ui.components.TelemetryHUD
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
 import com.example.ui.theme.AmberAccent
 import com.example.ui.theme.CyanLight
 import com.example.ui.theme.CyanNeon
@@ -101,6 +104,7 @@ val geofenceOptions = listOf(
     Pair("3 km", 3000.0)
 )
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun LiveTraceScreen(
     useImperialUnits: Boolean = false,
@@ -116,33 +120,23 @@ fun LiveTraceScreen(
     var showWaypointDialog by remember { mutableStateOf(false) }
     var viewMode by remember { mutableStateOf(0) } // 0 = Split, 1 = Full Map, 2 = Telemetry
 
-    // Permission launcher
-    val hasLocationPermission = remember(context) {
-        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-    }
-    var permissionGranted by remember { mutableStateOf(hasLocationPermission) }
+    LocationPermissionHandler(
+        showRationaleBanner = state.status == TrackingStatus.IDLE && !simulationMode
+    ) { permissionsState, launchPermissionRequest ->
+        val fineGranted = permissionsState.permissions
+            .find { it.permission == Manifest.permission.ACCESS_FINE_LOCATION }
+            ?.status?.isGranted == true
+        val coarseGranted = permissionsState.permissions
+            .find { it.permission == Manifest.permission.ACCESS_COARSE_LOCATION }
+            ?.status?.isGranted == true
+        val hasLocationAccess = fineGranted || coarseGranted
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { perms ->
-        val fineGranted = perms[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
-        val coarseGranted = perms[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
-        permissionGranted = fineGranted || coarseGranted
-        if (permissionGranted) {
-            manager.startTracing(
-                activityType = selectedActivity,
-                useSimulation = simulationMode,
-                geofenceRadiusMeters = selectedGeofence
-            )
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Slate950)
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Slate950)
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
             // View Mode selector top bar
             Surface(
                 color = Slate900,
@@ -367,19 +361,14 @@ fun LiveTraceScreen(
                     TrackingStatus.IDLE -> {
                         Button(
                             onClick = {
-                                if (permissionGranted || simulationMode) {
+                                if (hasLocationAccess || simulationMode) {
                                     manager.startTracing(
                                         activityType = selectedActivity,
                                         useSimulation = simulationMode,
                                         geofenceRadiusMeters = selectedGeofence
                                     )
                                 } else {
-                                    permissionLauncher.launch(
-                                        arrayOf(
-                                            Manifest.permission.ACCESS_FINE_LOCATION,
-                                            Manifest.permission.ACCESS_COARSE_LOCATION
-                                        )
-                                    )
+                                    launchPermissionRequest()
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(
@@ -503,6 +492,7 @@ fun LiveTraceScreen(
             )
         }
     }
+}
 }
 
 @Composable
