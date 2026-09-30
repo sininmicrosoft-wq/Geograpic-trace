@@ -6,8 +6,10 @@ import android.content.Intent
 import android.location.Location
 import android.util.Log
 import androidx.core.content.ContextCompat
+import android.os.Build
 import com.example.GeoTraceApplication
 import com.example.data.model.LocationBreadcrumb
+import com.example.data.model.RouteElevationPoint
 import com.example.data.model.TripSession
 import com.example.data.model.WaypointMarker
 import com.example.service.LocationTracingService
@@ -323,11 +325,24 @@ class LocationTracingManager private constructor(private val context: Context) {
         val minAlt = if (current.points.isEmpty()) altitude else minOf(current.minAltitudeMeters, altitude)
         val maxAlt = if (current.points.isEmpty()) altitude else maxOf(current.maxAltitudeMeters, altitude)
 
+        // Compute slope gradient grade percentage
+        val deltaDist = if (lastLocation != null) location.distanceTo(lastLocation!!).toDouble() else 0.0
+        val deltaAlt = if (prevAlt != null) altitude - prevAlt else 0.0
+        val gradePct = if (deltaDist >= 2.0) {
+            ((deltaAlt / deltaDist) * 100.0).toFloat().coerceIn(-45f, 45f)
+        } else 0f
+
+        val verticalAcc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && location.hasVerticalAccuracy()) {
+            location.verticalAccuracyMeters
+        } else 0f
+
         val breadcrumb = LocationBreadcrumb(
             sessionId = sessionId,
             latitude = location.latitude,
             longitude = location.longitude,
             altitude = altitude,
+            altitudeAccuracyMeters = verticalAcc,
+            gradePercentage = gradePct,
             speed = (speedKmh / 3.6).toFloat(),
             accuracy = if (location.hasAccuracy()) location.accuracy else 5f,
             bearing = bearing,
@@ -336,6 +351,20 @@ class LocationTracingManager private constructor(private val context: Context) {
         )
 
         val newPoints = current.points + breadcrumb
+
+        val elevationPoint = RouteElevationPoint(
+            sessionId = sessionId,
+            pointIndex = newPoints.size - 1,
+            latitude = location.latitude,
+            longitude = location.longitude,
+            elevationMeters = altitude,
+            distanceFromStartMeters = totalDist,
+            gradePercentage = gradePct,
+            cumulativeAscentMeters = elevationGain,
+            cumulativeDescentMeters = 0.0,
+            verticalAccuracyMeters = verticalAcc,
+            timestampMillis = breadcrumb.timestampMillis
+        )
 
         // Calculate backtrack metrics to start
         var distToStart: Double? = null
@@ -387,6 +416,7 @@ class LocationTracingManager private constructor(private val context: Context) {
 
         scope.launch {
             repository.addPoint(breadcrumb)
+            repository.addElevationPoint(elevationPoint)
         }
     }
 

@@ -48,6 +48,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import com.example.ui.components.D3ElevationProfileFromBreadcrumbs
+import com.example.ui.components.D3ElevationProfileFromDatabase
+import com.example.ui.components.ElevationSpeedChart
 import com.example.ui.components.GpxExportDialog
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -106,6 +109,7 @@ fun TripDetailScreen(
     val repository = remember { GeoTraceApplication.instance.tripRepository }
     val session by repository.getSession(sessionId).collectAsState(initial = null)
     val points by repository.getSessionPoints(sessionId).collectAsState(initial = emptyList())
+    val elevationPoints by repository.getSessionElevationPoints(sessionId).collectAsState(initial = emptyList())
     val waypoints by repository.getSessionWaypoints(sessionId).collectAsState(initial = emptyList())
 
     val scope = rememberCoroutineScope()
@@ -427,11 +431,18 @@ fun TripDetailScreen(
                             )
                         }
 
-                        // Elevation Profile Chart
-                        ElevationSpeedChart(
-                            points = points,
-                            useImperialUnits = useImperialUnits
-                        )
+                        // D3 Elevation Profile Chart
+                        if (elevationPoints.isNotEmpty()) {
+                            D3ElevationProfileFromDatabase(
+                                elevationPoints = elevationPoints,
+                                useImperialUnits = useImperialUnits
+                            )
+                        } else {
+                            D3ElevationProfileFromBreadcrumbs(
+                                breadcrumbs = points,
+                                useImperialUnits = useImperialUnits
+                            )
+                        }
 
                         // Waypoints list if any
                         if (waypoints.isNotEmpty()) {

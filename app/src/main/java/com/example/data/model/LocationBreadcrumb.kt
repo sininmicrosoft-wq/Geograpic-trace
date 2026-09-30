@@ -15,6 +15,8 @@ data class LocationBreadcrumb(
     val latitude: Double,
     val longitude: Double,
     val altitude: Double = 0.0,
+    val altitudeAccuracyMeters: Float = 0f,
+    val gradePercentage: Float = 0f,
     val speed: Float = 0f, // in m/s
     val accuracy: Float = 0f, // in meters
     val bearing: Float = 0f, // in degrees

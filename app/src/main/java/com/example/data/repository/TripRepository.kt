@@ -7,6 +7,7 @@ import com.example.blockchain.StakingPoolDef
 import com.example.data.dao.TripDao
 import com.example.data.model.LocationBreadcrumb
 import com.example.data.model.RewardTransaction
+import com.example.data.model.RouteElevationPoint
 import com.example.data.model.StakedPosition
 import com.example.data.model.TripSession
 import com.example.data.model.UserRewardWallet
@@ -85,8 +86,24 @@ class TripRepository(private val tripDao: TripDao) {
         tripDao.insertWaypoint(waypoint)
     }
 
+    fun getSessionElevationPoints(sessionId: Long): Flow<List<RouteElevationPoint>> =
+        tripDao.getElevationPoints(sessionId)
+
+    suspend fun getSessionElevationPointsSync(sessionId: Long): List<RouteElevationPoint> = withContext(Dispatchers.IO) {
+        tripDao.getElevationPointsSync(sessionId)
+    }
+
+    suspend fun addElevationPoint(point: RouteElevationPoint): Long = withContext(Dispatchers.IO) {
+        tripDao.insertElevationPoint(point)
+    }
+
+    suspend fun addElevationPoints(points: List<RouteElevationPoint>) = withContext(Dispatchers.IO) {
+        tripDao.insertElevationPoints(points)
+    }
+
     suspend fun deleteTrip(sessionId: Long) = withContext(Dispatchers.IO) {
         tripDao.deletePointsForSession(sessionId)
+        tripDao.deleteElevationPointsForSession(sessionId)
         tripDao.deleteWaypointsForSession(sessionId)
         tripDao.deleteSession(sessionId)
     }

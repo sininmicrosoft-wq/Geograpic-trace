@@ -70,9 +70,10 @@ import com.example.location.LocationTracingManager
 import com.example.location.TrackingStatus
 import com.example.data.repository.TraceRewardSummary
 import com.example.ui.components.AddWaypointDialog
+import com.example.ui.components.CompactLiveTelemetryHUD
+import com.example.ui.components.D3ElevationProfileFromBreadcrumbs
 import com.example.ui.components.ElevationSpeedChart
 import com.example.ui.components.InteractiveRouteMap
-import com.example.ui.components.CompactLiveTelemetryHUD
 import com.example.ui.components.LiveTelemetryHUD
 import com.example.ui.components.LocationPermissionHandler
 import com.example.ui.components.TelemetryHUD
@@ -251,8 +252,8 @@ fun LiveTraceScreen(
 
                         if (state.points.size >= 2) {
                             Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                                ElevationSpeedChart(
-                                    points = state.points,
+                                D3ElevationProfileFromBreadcrumbs(
+                                    breadcrumbs = state.points,
                                     useImperialUnits = useImperialUnits
                                 )
                             }
@@ -308,8 +309,8 @@ fun LiveTraceScreen(
                             useImperialUnits = useImperialUnits
                         )
                         Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                            ElevationSpeedChart(
-                                points = state.points,
+                            D3ElevationProfileFromBreadcrumbs(
+                                breadcrumbs = state.points,
                                 useImperialUnits = useImperialUnits
                             )
                         }

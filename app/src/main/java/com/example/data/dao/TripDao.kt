@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Update
 import com.example.data.model.LocationBreadcrumb
 import com.example.data.model.RewardTransaction
+import com.example.data.model.RouteElevationPoint
 import com.example.data.model.StakedPosition
 import com.example.data.model.TripSession
 import com.example.data.model.UserRewardWallet
@@ -34,6 +35,12 @@ interface TripDao {
     @Query("SELECT * FROM location_breadcrumbs WHERE sessionId = :sessionId ORDER BY timestampMillis ASC")
     suspend fun getSessionPointsSync(sessionId: Long): List<LocationBreadcrumb>
 
+    @Query("SELECT * FROM route_elevation_points WHERE sessionId = :sessionId ORDER BY pointIndex ASC")
+    fun getElevationPoints(sessionId: Long): Flow<List<RouteElevationPoint>>
+
+    @Query("SELECT * FROM route_elevation_points WHERE sessionId = :sessionId ORDER BY pointIndex ASC")
+    suspend fun getElevationPointsSync(sessionId: Long): List<RouteElevationPoint>
+
     @Query("SELECT * FROM trip_waypoints WHERE sessionId = :sessionId ORDER BY timestampMillis ASC")
     fun getSessionWaypoints(sessionId: Long): Flow<List<WaypointMarker>>
 
@@ -53,6 +60,12 @@ interface TripDao {
     suspend fun insertPoints(points: List<LocationBreadcrumb>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertElevationPoint(point: RouteElevationPoint): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertElevationPoints(points: List<RouteElevationPoint>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWaypoint(waypoint: WaypointMarker): Long
 
     @Query("DELETE FROM trip_sessions WHERE id = :sessionId")
@@ -60,6 +73,9 @@ interface TripDao {
 
     @Query("DELETE FROM location_breadcrumbs WHERE sessionId = :sessionId")
     suspend fun deletePointsForSession(sessionId: Long)
+
+    @Query("DELETE FROM route_elevation_points WHERE sessionId = :sessionId")
+    suspend fun deleteElevationPointsForSession(sessionId: Long)
 
     @Query("DELETE FROM trip_waypoints WHERE sessionId = :sessionId")
     suspend fun deleteWaypointsForSession(sessionId: Long)

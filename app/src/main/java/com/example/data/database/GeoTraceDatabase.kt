@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import com.example.data.dao.TripDao
 import com.example.data.model.LocationBreadcrumb
 import com.example.data.model.RewardTransaction
+import com.example.data.model.RouteElevationPoint
 import com.example.data.model.StakedPosition
 import com.example.data.model.TripSession
 import com.example.data.model.UserRewardWallet
@@ -16,12 +17,13 @@ import com.example.data.model.WaypointMarker
     entities = [
         TripSession::class,
         LocationBreadcrumb::class,
+        RouteElevationPoint::class,
         WaypointMarker::class,
         UserRewardWallet::class,
         RewardTransaction::class,
         StakedPosition::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class GeoTraceDatabase : RoomDatabase() {
